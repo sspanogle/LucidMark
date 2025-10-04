@@ -8,6 +8,8 @@ const COMMANDS = {
   saveDialog: 'save_file_dialog',
   recent: 'get_recent_files',
   addRecent: 'add_recent_file',
+  removeRecent: 'remove_recent_file',
+  clearRecents: 'clear_recent_files',
 } as const;
 
 type CommandKey = keyof typeof COMMANDS;
@@ -54,4 +56,16 @@ export async function registerRecentFile(path: string): Promise<void> {
   }
 
   await callCommand<void>(COMMANDS.addRecent, { path });
+}
+
+export async function removeRecentFile(path: string): Promise<void> {
+  if (!path.trim()) {
+    throw new Error('File path is required');
+  }
+
+  await callCommand<void>(COMMANDS.removeRecent, { path });
+}
+
+export async function clearRecentFiles(): Promise<void> {
+  await callCommand<void>(COMMANDS.clearRecents);
 }

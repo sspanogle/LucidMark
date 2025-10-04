@@ -14,79 +14,83 @@
       <header class="top-nav">
         <div class="brand">LucidMark</div>
         <nav class="nav-links">
-          <button type="button" class="nav-button" data-new-doc>New Document</button>
-          <button type="button" class="nav-button" data-edit-toggle aria-pressed="false">Enter Edit Mode</button>
-          <button type="button" class="nav-button" data-open-trigger>Open Markdown</button>
-          <a href="#viewer" class="nav-link" data-nav-link="viewer">Viewer</a>
           <a href="#settings" class="nav-link" data-nav-link="settings">Settings</a>
           <a href="#about" class="nav-link" data-nav-link="about">About</a>
         </nav>
       </header>
 
-      <section class="document-meta" aria-label="Active document info" data-viewer-section>
-        <details class="collapsible-section" data-active-doc-details>
-          <summary class="collapsible-section__header">
-            <h2 class="document-meta__heading">Active Document</h2>
-          </summary>
-          <div class="collapsible-section__content">
-            <p class="status-line document-meta__status" data-status>Waiting for a Markdown file…</p>
-            <div class="document-meta__item">
-              <span class="document-meta__label">Path</span>
-              <span class="document-meta__value" data-file-path>None selected</span>
-            </div>
-            <div class="document-meta__item">
-              <span class="document-meta__label">Size</span>
-              <span class="document-meta__value" data-file-size>—</span>
-            </div>
-            <div class="document-meta__item">
-              <span class="document-meta__label">Updated</span>
-              <span class="document-meta__value" data-file-updated>—</span>
-            </div>
-          </div>
-        </details>
-
-        <details class="collapsible-section recent-files" data-recent-details data-recent-section hidden>
-          <summary class="collapsible-section__header">
-            <h3 class="document-meta__heading">Recent Documents</h3>
-          </summary>
-          <div class="collapsible-section__content">
-            <ul class="recent-list" data-recent-list></ul>
-          </div>
-        </details>
+      <section class="status-bar" data-viewer-section>
+        <p class="status-line" data-status>Waiting for a Markdown file…</p>
+        <button type="button" class="status-bar__action" data-open-location hidden title="Open file location">📁 Open Location</button>
       </section>
 
       <section class="tab-bar" data-tab-bar data-viewer-section>
         <div class="tab-list" data-tab-list>
           <!-- Tabs will be inserted here dynamically -->
         </div>
-        <button type="button" class="tab-new" data-new-tab title="New Tab">+</button>
+        <div class="tab-actions" data-viewer-section>
+          <button type="button" class="tab-action-button" data-open-trigger title="Open Markdown">Open…</button>
+          <button type="button" class="tab-action-button" data-recents-trigger title="View Recent Documents">Recents</button>
+          <button type="button" class="tab-action-button tab-action-button--primary" data-new-tab title="New Tab">+ New Tab</button>
+        </div>
+      </section>
+
+      <section class="view-mode-controls" data-viewer-section data-view-controls hidden>
+        <div class="mode-toggle" role="group" aria-label="Viewer mode">
+          <button
+            type="button"
+            class="mode-toggle__button mode-toggle__button--active"
+            data-view-toggle
+            aria-pressed="true"
+            title="Switch to view mode"
+          >
+            View
+          </button>
+          <button
+            type="button"
+            class="mode-toggle__button"
+            data-edit-toggle
+            aria-pressed="false"
+            aria-label="Enter Edit Mode"
+            title="Enter edit mode"
+          >
+            Edit
+          </button>
+        </div>
+        <div class="export-controls">
+          <button type="button" class="export-button" data-export-pdf title="Export as PDF">Export PDF</button>
+          <button type="button" class="export-button" data-export-word title="Export as Word">Export Word</button>
+        </div>
+      </section>
+
+      <section class="panel panel-toolbar" data-editor-toolbar data-viewer-section hidden>
+        <div class="editor-toolbar">
+          <div class="editor-toolbar__group">
+            <button type="button" class="toolbar-button" data-save disabled>Save</button>
+            <button type="button" class="toolbar-button" data-revert disabled>Revert</button>
+            <button type="button" class="toolbar-button" data-copy disabled>Copy Raw</button>
+          </div>
+          <div class="editor-toolbar__markdown-tools" data-markdown-tools>
+            <button type="button" class="md-tool-button" data-md-tool="h1" title="Heading 1">H1</button>
+            <button type="button" class="md-tool-button" data-md-tool="h2" title="Heading 2">H2</button>
+            <button type="button" class="md-tool-button" data-md-tool="h3" title="Heading 3">H3</button>
+            <button type="button" class="md-tool-button" data-md-tool="bold" title="Bold">B</button>
+            <button type="button" class="md-tool-button" data-md-tool="italic" title="Italic">I</button>
+            <button type="button" class="md-tool-button" data-md-tool="underline" title="Underline">U</button>
+            <button type="button" class="md-tool-button" data-md-tool="quote" title="Quote">""</button>
+            <button type="button" class="md-tool-button" data-md-tool="code" title="Code">&lt;&gt;</button>
+            <button type="button" class="md-tool-button" data-md-tool="ul" title="Unordered List">• List</button>
+            <button type="button" class="md-tool-button" data-md-tool="ol" title="Ordered List">1. List</button>
+            <button type="button" class="md-tool-button" data-md-tool="link" title="Link">🔗</button>
+            <button type="button" class="md-tool-button" data-md-tool="image" title="Image">🖼</button>
+          </div>
+          <div class="editor-toolbar__status" data-editor-status></div>
+        </div>
       </section>
 
       <main id="viewer" class="app-layout app-layout--single" data-viewer-section>
         <section class="panel panel-controls panel-controls--hidden" data-editor-panel>
           <div class="editor-pane" data-editor-pane hidden>
-            <header class="editor-toolbar">
-              <div class="editor-toolbar__group">
-                <button type="button" class="toolbar-button" data-save disabled>Save</button>
-                <button type="button" class="toolbar-button" data-revert disabled>Revert</button>
-                <button type="button" class="toolbar-button" data-copy disabled>Copy Raw</button>
-              </div>
-              <div class="editor-toolbar__markdown-tools" data-markdown-tools>
-                <button type="button" class="md-tool-button" data-md-tool="h1" title="Heading 1">H1</button>
-                <button type="button" class="md-tool-button" data-md-tool="h2" title="Heading 2">H2</button>
-                <button type="button" class="md-tool-button" data-md-tool="h3" title="Heading 3">H3</button>
-                <button type="button" class="md-tool-button" data-md-tool="bold" title="Bold">B</button>
-                <button type="button" class="md-tool-button" data-md-tool="italic" title="Italic">I</button>
-                <button type="button" class="md-tool-button" data-md-tool="underline" title="Underline">U</button>
-                <button type="button" class="md-tool-button" data-md-tool="quote" title="Quote">""</button>
-                <button type="button" class="md-tool-button" data-md-tool="code" title="Code">&lt;&gt;</button>
-                <button type="button" class="md-tool-button" data-md-tool="ul" title="Unordered List">• List</button>
-                <button type="button" class="md-tool-button" data-md-tool="ol" title="Ordered List">1. List</button>
-                <button type="button" class="md-tool-button" data-md-tool="link" title="Link">🔗</button>
-                <button type="button" class="md-tool-button" data-md-tool="image" title="Image">🖼</button>
-              </div>
-              <div class="editor-toolbar__status" data-editor-status></div>
-            </header>
             <div class="editor-container" data-editor-root></div>
           </div>
         </section>
@@ -96,11 +100,31 @@
           <span class="resize-handle__hint">⇔</span>
         </div>
 
-        <section class="panel panel-viewer">
-          <article id="markdown-viewer" class="markdown-body markdown-placeholder">
+      <section class="panel panel-viewer">
+          <article id="markdown-viewer" class="markdown-body markdown-placeholder" data-viewer-pane>
             <div class="empty-state" data-empty-state>
               <h2>Ready when you are</h2>
-              <p>Select or drop a Markdown file to render it here with full GitHub styling.</p>
+              <p>Select a Markdown file to render it here with full GitHub styling.</p>
+
+              <div class="recent-cards" data-recent-cards hidden>
+                <div class="recent-cards__header">
+                  <p class="recent-cards__title">Recent Documents</p>
+                  <button type="button" class="recent-cards__clear" data-clear-recents title="Clear all recent documents">Clear All</button>
+                </div>
+                <div class="recent-cards__grid" data-recent-cards-grid></div>
+              </div>
+
+              <div class="drop-zone" data-drop-zone hidden>
+                <div class="drop-zone__content">
+                  <svg class="drop-zone__icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                  </svg>
+                  <h3 class="drop-zone__title">Drop markdown file here</h3>
+                  <p class="drop-zone__subtitle">or <button type="button" class="drop-zone__button" data-drop-zone-select>browse files</button></p>
+                </div>
+              </div>
             </div>
           </article>
         </section>

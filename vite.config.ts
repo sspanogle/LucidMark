@@ -15,6 +15,7 @@ export default defineConfig(() => ({
       '@ui': resolve(__dirname, './src/ui'),
       '@utils': resolve(__dirname, './src/utils'),
       '@shared-types': resolve(__dirname, './src/types'),
+      '@export': resolve(__dirname, './src/export'),
     },
   },
   test: {

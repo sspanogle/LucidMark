@@ -1,12 +1,15 @@
 import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
+import { revealItemInDir } from '@tauri-apps/plugin-opener';
 
 import { MarkdownEditor } from '@editor/markdown-editor';
 import {
+  clearRecentFiles,
   listRecentFiles,
   pickFile,
   readFileContent,
   registerRecentFile,
+  removeRecentFile,
   saveFileAs,
   writeFileContent,
 } from '@file-system/file-system-service';
@@ -15,6 +18,7 @@ import { MarkdownRenderer } from '@renderer/markdown-renderer';
 import type { FileMetadata } from '@shared-types/files';
 import { getDefaultPreferences, loadPreferences, updatePreferences } from '@settings/preferences-store';
 import type { Preferences } from '@shared-types/settings';
+import { exportDocument } from '@export/export-service';
 
 interface ViewerState {
   path: string | null;
@@ -37,7 +41,7 @@ interface TabState {
   editorContent: string | null;
 }
 
-const renderer = new MarkdownRenderer();
+  const renderer = new MarkdownRenderer();
 const MENU_OPEN_EVENT = 'menu://open-markdown';
 const MENU_OPEN_RECENT_EVENT = 'menu://open-recent';
 
@@ -46,29 +50,29 @@ export function bootstrapApp(): void {
   const layout = root?.querySelector<HTMLElement>('.app-layout');
   const viewer = document.getElementById('markdown-viewer');
   const statusLine = root?.querySelector<HTMLElement>('[data-status]');
-  const filePath = root?.querySelector<HTMLElement>('[data-file-path]');
-  const fileSize = root?.querySelector<HTMLElement>('[data-file-size]');
-  const fileUpdated = root?.querySelector<HTMLElement>('[data-file-updated]');
   const openTriggers = Array.from(root?.querySelectorAll<HTMLElement>('[data-open-trigger]') ?? []);
-  const recentSection = root?.querySelector<HTMLElement>('[data-recent-section]');
-  const recentList = root?.querySelector<HTMLUListElement>('[data-recent-list]');
   const mathToggle = root?.querySelector<HTMLInputElement>('[data-math-toggle]');
   const diagramsToggle = root?.querySelector<HTMLInputElement>('[data-diagrams-toggle]');
   const syntaxToggle = root?.querySelector<HTMLInputElement>('[data-syntax-toggle]');
   const resizeHandle = root?.querySelector<HTMLElement>('[data-resize-handle]');
   const editorPanel = root?.querySelector<HTMLElement>('[data-editor-panel]');
   const editorPane = root?.querySelector<HTMLElement>('[data-editor-pane]');
+  const editorToolbar = root?.querySelector<HTMLElement>('[data-editor-toolbar]');
   const editorRoot = root?.querySelector<HTMLElement>('[data-editor-root]');
   const editorStatus = root?.querySelector<HTMLElement>('[data-editor-status]');
   const editToggle = root?.querySelector<HTMLButtonElement>('[data-edit-toggle]');
+  const viewModeControls = root?.querySelector<HTMLElement>('[data-view-controls]');
+  const viewToggle = viewModeControls?.querySelector<HTMLButtonElement>('[data-view-toggle]') ?? null;
   const saveButton = root?.querySelector<HTMLButtonElement>('[data-save]');
   const revertButton = root?.querySelector<HTMLButtonElement>('[data-revert]');
   const copyButton = root?.querySelector<HTMLButtonElement>('[data-copy]');
-  const activeDocDetails = root?.querySelector<HTMLDetailsElement>('[data-active-doc-details]');
-  const recentDetails = root?.querySelector<HTMLDetailsElement>('[data-recent-details]');
-  const newDocButton = root?.querySelector<HTMLButtonElement>('[data-new-doc]');
-  const markdownTools = root?.querySelector<HTMLElement>('[data-markdown-tools]');
   const mdToolButtons = Array.from(root?.querySelectorAll<HTMLButtonElement>('[data-md-tool]') ?? []);
+  const initialViewerMarkup = viewer?.innerHTML ?? '';
+  const recentCards = root?.querySelector<HTMLElement>('[data-recent-cards]');
+  const recentCardsGrid = root?.querySelector<HTMLElement>('[data-recent-cards-grid]');
+  const clearRecentsButton = root?.querySelector<HTMLButtonElement>('[data-clear-recents]');
+  const dropZone = root?.querySelector<HTMLElement>('[data-drop-zone]');
+  const dropZoneSelect = root?.querySelector<HTMLButtonElement>('[data-drop-zone-select]');
   const navLinks = Array.from(root?.querySelectorAll<HTMLAnchorElement>('[data-nav-link]') ?? []);
   const settingsView = root?.querySelector<HTMLElement>('[data-settings-view]');
   const aboutView = root?.querySelector<HTMLElement>('[data-about-view]');
@@ -76,38 +80,36 @@ export function bootstrapApp(): void {
   const tabList = root?.querySelector<HTMLElement>('[data-tab-list]');
   const newTabButton = root?.querySelector<HTMLButtonElement>('[data-new-tab]');
   const viewerSections = Array.from(root?.querySelectorAll<HTMLElement>('[data-viewer-section]') ?? []);
+  const exportPdfButton = root?.querySelector<HTMLButtonElement>('[data-export-pdf]');
+  const exportWordButton = root?.querySelector<HTMLButtonElement>('[data-export-word]');
+  const recentsTrigger = root?.querySelector<HTMLButtonElement>('[data-recents-trigger]');
+  const openLocationButton = root?.querySelector<HTMLButtonElement>('[data-open-location]');
 
   if (
     !root ||
     !layout ||
     !viewer ||
     !statusLine ||
-    !filePath ||
-    !fileSize ||
-    !fileUpdated ||
-    !recentSection ||
-    !recentList ||
     !mathToggle ||
     !diagramsToggle ||
     !syntaxToggle ||
     !resizeHandle ||
     !editorPanel ||
     !editorPane ||
+    !editorToolbar ||
     !editorRoot ||
     !editorStatus ||
     !editToggle ||
     !saveButton ||
     !revertButton ||
     !copyButton ||
-    !activeDocDetails ||
-    !recentDetails ||
-    !newDocButton ||
-    !markdownTools ||
     !settingsView ||
     !aboutView ||
     !tabBar ||
     !tabList ||
-    !newTabButton
+    !newTabButton ||
+    !viewModeControls ||
+    !viewToggle
   ) {
     console.error('Failed to bootstrap LucidMark viewer: missing required DOM nodes.');
     return;
@@ -138,8 +140,6 @@ export function bootstrapApp(): void {
   let tabIdCounter = 0;
 
   const SIDEBAR_WIDTH_STORAGE_KEY = 'lucidmark.sidebarWidth';
-  const ACTIVE_DOC_COLLAPSED_KEY = 'lucidmark.activeDocCollapsed';
-  const RECENT_DOC_COLLAPSED_KEY = 'lucidmark.recentDocCollapsed';
   const SIDEBAR_MIN_WIDTH = 320;
   const VIEWER_MIN_WIDTH = 420;
 
@@ -182,6 +182,19 @@ export function bootstrapApp(): void {
     viewer.prepend(warningBlock);
   };
 
+  const resetViewer = (): void => {
+    viewer.innerHTML = initialViewerMarkup;
+    viewer.classList.add('markdown-placeholder');
+    renderPreviewWarnings([]);
+  };
+
+  const ensureMarkdownExtension = (name: string): string => {
+    if (isMarkdownFile(name)) {
+      return name;
+    }
+    return `${name}.md`;
+  };
+
   const setStatus = (message: string, variant: 'default' | 'info' | 'error' = 'default'): void => {
     statusLine.textContent = message;
     statusLine.classList.remove('status-line--info', 'status-line--error');
@@ -192,10 +205,42 @@ export function bootstrapApp(): void {
     }
   };
 
-  const updateMeta = (file: ViewerState): void => {
-    filePath.textContent = file.displayPath ?? 'None selected';
-    fileSize.textContent = file.size ? formatBytes(file.size) : '—';
-    fileUpdated.textContent = session.isDirty ? 'Unsaved changes' : file.lastModified ?? '—';
+  const updateTabTooltip = (tabId: string): void => {
+    const tab = tabs.get(tabId);
+    if (!tab) return;
+
+    const tabElement = tabList.querySelector<HTMLElement>(`[data-tab-id="${tabId}"]`);
+    if (!tabElement) return;
+
+    // Remove existing tooltip
+    const existingTooltip = tabElement.querySelector('.tab__tooltip');
+    if (existingTooltip) {
+      existingTooltip.remove();
+    }
+
+    // Only add tooltip if there's a path
+    if (tab.viewerState.path) {
+      const tooltip = document.createElement('div');
+      tooltip.className = 'tab__tooltip';
+
+      const pathLine = document.createElement('span');
+      pathLine.className = 'tab__tooltip-line';
+      pathLine.textContent = tab.viewerState.path;
+
+      const sizeLine = document.createElement('span');
+      sizeLine.className = 'tab__tooltip-line';
+      sizeLine.textContent = `Size: ${formatBytes(tab.viewerState.size)}`;
+
+      const statusLine = document.createElement('span');
+      statusLine.className = 'tab__tooltip-line';
+      const statusText = tab.sessionState.isDirty
+        ? 'Unsaved changes'
+        : (tab.viewerState.lastModified ?? '—');
+      statusLine.textContent = `Updated: ${statusText}`;
+
+      tooltip.append(pathLine, sizeLine, statusLine);
+      tabElement.append(tooltip);
+    }
   };
 
   const setEditorStatus = (message: string): void => {
@@ -383,20 +428,47 @@ export function bootstrapApp(): void {
 
   const updateUiState = (): void => {
     const hasDocument = Boolean(state.path || state.displayPath);
+    const hasFilePath = Boolean(state.path);
 
     if (!hasDocument && session.isEditing) {
       session.isEditing = false;
     }
 
-    editorPane.hidden = !session.isEditing || !hasDocument;
+    const editorActive = session.isEditing && hasDocument;
+
+    // Show/hide "Open Location" button
+    if (openLocationButton) {
+      openLocationButton.hidden = !hasFilePath || !runningInTauri;
+    }
+
+    editorPane.hidden = !editorActive;
+    editorToolbar.hidden = !editorActive;
     editorPanel.dataset.editing = session.isEditing ? 'true' : 'false';
-    editorPanel.classList.toggle('panel-controls--hidden', !hasDocument);
-    editToggle.textContent = session.isEditing ? 'Exit Edit Mode' : 'Enter Edit Mode';
+    editorPanel.classList.toggle('panel-controls--hidden', !editorActive);
+    editorPanel.hidden = !editorActive;
+
+    const editLabel = session.isEditing ? 'Exit Edit Mode' : 'Enter Edit Mode';
     editToggle.setAttribute('aria-pressed', session.isEditing ? 'true' : 'false');
-    editToggle.disabled = !hasDocument && !session.isEditing;
-    resizeHandle.classList.toggle('resize-handle--active', session.isEditing);
-    resizeHandle.hidden = !hasDocument;
-    layout.classList.toggle('app-layout--single', !hasDocument);
+    editToggle.setAttribute('aria-label', editLabel);
+    editToggle.title = editLabel;
+    editToggle.disabled = !hasDocument;
+    editToggle.classList.toggle('mode-toggle__button--active', session.isEditing);
+    editToggle.dataset.editing = session.isEditing ? 'true' : 'false';
+
+    viewToggle.setAttribute('aria-pressed', session.isEditing ? 'false' : 'true');
+    viewToggle.disabled = !hasDocument;
+    viewToggle.classList.toggle('mode-toggle__button--active', !session.isEditing);
+
+    viewModeControls.hidden = !hasDocument;
+
+    if (recentCards) {
+      const hasRecentItems = recentCards.dataset.hasItems === 'true';
+      recentCards.hidden = !hasRecentItems || hasDocument;
+    }
+
+    resizeHandle.classList.toggle('resize-handle--active', editorActive);
+    resizeHandle.hidden = !editorActive;
+    layout.classList.toggle('app-layout--single', !editorActive);
 
     const canSave = session.isEditing && session.isDirty && runningInTauri;
     const canRevert = session.isEditing && (session.isDirty || Boolean(state.path) || session.originalContent !== '');
@@ -509,38 +581,77 @@ export function bootstrapApp(): void {
   };
 
   const renderRecentFiles = (files: FileMetadata[]): void => {
-    recentList.innerHTML = '';
-    recentSection.hidden = files.length === 0;
+    if (recentCardsGrid) {
+      recentCardsGrid.innerHTML = '';
+    }
+
+    const hasDocument = Boolean(state.path || state.displayPath);
+    const hasRecentItems = files.length > 0;
+
+    if (recentCards) {
+      recentCards.dataset.hasItems = String(hasRecentItems);
+      recentCards.hidden = !hasRecentItems || hasDocument;
+    }
+
+    if (dropZone) {
+      dropZone.hidden = hasRecentItems || hasDocument;
+    }
 
     if (files.length === 0) {
       return;
     }
 
-    files.forEach((file) => {
-      const item = document.createElement('li');
+    if (recentCardsGrid) {
+      files.slice(0, 6).forEach((file) => {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'recent-card';
 
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'recent-item__button';
-      button.title = file.path;
+        const removeButton = document.createElement('button');
+        removeButton.type = 'button';
+        removeButton.className = 'recent-card__remove';
+        removeButton.textContent = '×';
+        removeButton.title = 'Remove from recents';
+        removeButton.addEventListener('click', (e) => {
+          e.stopPropagation();
+          void handleRemoveRecent(file.path);
+        });
 
-      const name = document.createElement('span');
-      name.className = 'recent-item__name';
-      name.textContent = getFileName(file.path);
+        const cardName = document.createElement('p');
+        cardName.className = 'recent-card__name';
+        cardName.textContent = getFileName(file.path);
 
-      const details = document.createElement('span');
-      details.className = 'recent-item__details';
-      const updated = formatTimestamp(file.lastModified) ?? '—';
-      details.textContent = `${truncatePath(file.path)} • ${formatBytes(file.size)} • ${updated}`;
+        const infoIcon = document.createElement('div');
+        infoIcon.className = 'recent-card__info-icon';
+        infoIcon.textContent = 'i';
 
-      button.append(name, details);
-      button.addEventListener('click', () => {
-        void loadFromPath(file.path);
+        const tooltip = document.createElement('div');
+        tooltip.className = 'recent-card__tooltip';
+
+        const pathLine = document.createElement('span');
+        pathLine.className = 'recent-card__tooltip-line';
+        pathLine.textContent = file.path;
+
+        const sizeLine = document.createElement('span');
+        sizeLine.className = 'recent-card__tooltip-line';
+        sizeLine.textContent = `Size: ${formatBytes(file.size)}`;
+
+        const dateLine = document.createElement('span');
+        dateLine.className = 'recent-card__tooltip-line';
+        const updated = formatTimestamp(file.lastModified) ?? '—';
+        dateLine.textContent = `Modified: ${updated}`;
+
+        tooltip.append(pathLine, sizeLine, dateLine);
+        infoIcon.append(tooltip);
+        card.append(removeButton, cardName, infoIcon);
+
+        card.addEventListener('click', () => {
+          void loadFromPath(file.path);
+        });
+
+        recentCardsGrid.append(card);
       });
-
-      item.append(button);
-      recentList.append(item);
-    });
+    }
   };
 
   const refreshRecents = async (): Promise<void> => {
@@ -556,10 +667,45 @@ export function bootstrapApp(): void {
     }
   };
 
+  const handleClearRecents = async (): Promise<void> => {
+    if (!runningInTauri) {
+      return;
+    }
+
+    if (!confirm('Clear all recent documents? This will not delete the files.')) {
+      return;
+    }
+
+    try {
+      await clearRecentFiles();
+      await refreshRecents();
+      setStatus('Recent documents cleared.', 'info');
+    } catch (error) {
+      console.error('Unable to clear recent files', error);
+      setStatus('Unable to clear recent documents.', 'error');
+    }
+  };
+
+  const handleRemoveRecent = async (path: string): Promise<void> => {
+    if (!runningInTauri) {
+      return;
+    }
+
+    try {
+      await removeRecentFile(path);
+      await refreshRecents();
+      setStatus('Removed from recent documents.', 'info');
+    } catch (error) {
+      console.error('Unable to remove recent file', error);
+      setStatus('Unable to remove from recents.', 'error');
+    }
+  };
+
   const loadFromPath = async (path: string): Promise<void> => {
     try {
       setStatus('Loading markdown…', 'info');
       const file = await readFileContent(path);
+      const tabId = ensureActiveTabForFile(file.path);
       if (livePreviewTimer !== null) {
         window.clearTimeout(livePreviewTimer);
         livePreviewTimer = null;
@@ -575,13 +721,18 @@ export function bootstrapApp(): void {
 
       session.originalContent = file.content;
       session.isDirty = false;
+      session.isEditing = false;
 
       if (editor) {
         editor.setContent(file.content);
       }
 
-      updateMeta(state);
+      switchView('viewer');
+
       updateUiState();
+      setTabTitle(tabId, getFileName(file.path));
+      updateTabTooltip(tabId);
+      saveCurrentTabState();
 
       if (runningInTauri) {
         void registerRecentFile(file.path)
@@ -604,8 +755,10 @@ export function bootstrapApp(): void {
     state.size = encoder.encode(content).length;
     session.isDirty = content !== session.originalContent;
 
-    updateMeta(state);
     updateUiState();
+    if (activeTabId) {
+      updateTabTooltip(activeTabId);
+    }
     scheduleLivePreview(content);
 
     if (session.isDirty) {
@@ -632,11 +785,13 @@ export function bootstrapApp(): void {
       return;
     }
 
+    switchView('viewer');
     session.isEditing = !session.isEditing;
 
     if (session.isEditing) {
       const activeEditor = ensureEditor();
       updateUiState();
+      registerScrollSync(activeEditor);
       requestPreviewAlignment?.();
       window.requestAnimationFrame(() => {
         activeEditor.focus();
@@ -647,6 +802,9 @@ export function bootstrapApp(): void {
       updateUiState();
       setStatus(`Viewing ${describeCurrentFile()}`);
     }
+
+    // Save the updated editing state to the current tab
+    saveCurrentTabState();
   };
 
   const handleSave = async (): Promise<void> => {
@@ -685,8 +843,10 @@ export function bootstrapApp(): void {
       session.originalContent = content;
       session.isDirty = false;
 
-      updateMeta(state);
       updateUiState();
+      if (activeTabId) {
+        updateTabTooltip(activeTabId);
+      }
       setEditorStatus('');
       setStatus(`Saved ${describeCurrentFile()}`);
 
@@ -726,8 +886,10 @@ export function bootstrapApp(): void {
       editor.setContent(baseline);
     }
 
-    updateMeta(state);
     updateUiState();
+    if (activeTabId) {
+      updateTabTooltip(activeTabId);
+    }
     await renderMarkdown(baseline);
     setEditorStatus('');
     setStatus('Reverted changes.');
@@ -790,9 +952,122 @@ export function bootstrapApp(): void {
 
     tab.append(tabTitle, closeButton);
     tab.addEventListener('click', () => switchToTab(id));
+    tab.addEventListener('dblclick', () => {
+      renameTab(id);
+    });
 
     return tab;
   };
+
+  function renameTab(tabId: string, providedTitle?: string | null): void {
+    const tabState = tabs.get(tabId);
+    if (!tabState) {
+      return;
+    }
+
+    if (tabState.viewerState.path) {
+      return;
+    }
+
+    const currentTitle = tabState.viewerState.displayPath ?? `Untitled ${tabId.replace('tab-', '')}`;
+
+    let nextTitle: string | null;
+
+    if (typeof providedTitle === 'string') {
+      nextTitle = providedTitle.trim();
+    } else if (providedTitle === null) {
+      return;
+    } else {
+      const response = window.prompt('Name this document', currentTitle) ?? '';
+      nextTitle = response.trim();
+    }
+
+    if (!nextTitle) {
+      return;
+    }
+
+    const normalizedTitle = ensureMarkdownExtension(nextTitle);
+    tabState.viewerState.displayPath = normalizedTitle;
+    setTabTitle(tabId, normalizedTitle);
+
+    if (activeTabId === tabId) {
+      state.displayPath = normalizedTitle;
+      updateTabTooltip(tabId);
+    }
+  }
+
+  function registerTab(id: string, title: string, tabState: TabState): void {
+    if (!tabList) {
+      return;
+    }
+    tabs.set(id, tabState);
+    const tabElement = createTabElement(id, title);
+    tabList.append(tabElement);
+  }
+
+  function setTabTitle(tabId: string, title: string): void {
+    if (!tabList) {
+      return;
+    }
+    const tabElement = tabList.querySelector<HTMLElement>(`[data-tab-id="${tabId}"] .tab__title`);
+    if (tabElement) {
+      tabElement.textContent = title;
+    }
+  }
+
+  function findTabByPath(filePath: string): string | null {
+    for (const [id, tabState] of tabs.entries()) {
+      if (tabState.viewerState.path === filePath) {
+        return id;
+      }
+    }
+    return null;
+  }
+
+  function ensureActiveTabForFile(filePath: string): string {
+    const title = getFileName(filePath);
+
+    const existingTabId = findTabByPath(filePath);
+    if (existingTabId) {
+      if (activeTabId !== existingTabId) {
+        switchToTab(existingTabId);
+      }
+      setTabTitle(existingTabId, title);
+      return existingTabId;
+    }
+
+    if (activeTabId) {
+      const activeTabState = tabs.get(activeTabId);
+      if (activeTabState && !activeTabState.viewerState.path) {
+        activeTabState.viewerState.path = filePath;
+        activeTabState.viewerState.displayPath = filePath;
+        setTabTitle(activeTabId, title);
+        return activeTabId;
+      }
+    }
+
+    const id = `tab-${++tabIdCounter}`;
+    const tabState: TabState = {
+      id,
+      viewerState: {
+        path: filePath,
+        displayPath: filePath,
+        size: 0,
+        lastModified: null,
+        content: '',
+      },
+      sessionState: {
+        isEditing: false,
+        isDirty: false,
+        originalContent: '',
+      },
+      editorContent: '',
+    };
+
+    registerTab(id, title, tabState);
+    switchToTab(id);
+    return id;
+  }
 
   const saveCurrentTabState = (): void => {
     if (!activeTabId) return;
@@ -823,14 +1098,29 @@ export function bootstrapApp(): void {
       activeEditor.setContent(state.content);
     }
 
-    updateMeta(state);
+    // Update UI to reflect this tab's editing state
     updateUiState();
+    if (tabId && activeTabId === tabId) {
+      updateTabTooltip(tabId);
+    }
     void renderMarkdown(state.content);
+
+    // Restore scroll sync if in editing mode
+    if (session.isEditing && editor) {
+      registerScrollSync(editor);
+      requestPreviewAlignment?.();
+    }
   };
 
-  const createNewTab = async (): Promise<string> => {
+  interface CreateTabOptions {
+    readonly promptForName?: boolean;
+    readonly defaultName?: string;
+  }
+
+  const createNewTab = async (options: CreateTabOptions = {}): Promise<string> => {
+    const { promptForName = true, defaultName } = options;
     const id = `tab-${++tabIdCounter}`;
-    const title = `Untitled ${tabIdCounter}`;
+    const title = defaultName ?? `Untitled ${tabIdCounter}`;
 
     const newTabState: TabState = {
       id,
@@ -842,17 +1132,23 @@ export function bootstrapApp(): void {
         content: '',
       },
       sessionState: {
-        isEditing: true,
+        isEditing: false,
         isDirty: false,
         originalContent: '',
       },
       editorContent: '',
     };
 
-    tabs.set(id, newTabState);
+    registerTab(id, title, newTabState);
 
-    const tabElement = createTabElement(id, title);
-    tabList.append(tabElement);
+    if (promptForName) {
+      const providedName = window.prompt('Name this document', title);
+      if (providedName) {
+        renameTab(id, providedName);
+      }
+    } else if (defaultName) {
+      renameTab(id, defaultName);
+    }
 
     return id;
   };
@@ -881,6 +1177,10 @@ export function bootstrapApp(): void {
   };
 
   const closeTab = (tabId: string): void => {
+    if (tabId === activeTabId) {
+      saveCurrentTabState();
+    }
+
     const tab = tabs.get(tabId);
     if (!tab) return;
 
@@ -920,8 +1220,9 @@ export function bootstrapApp(): void {
           isDirty: false,
           originalContent: '',
         });
-        updateMeta(state);
+        resetViewer();
         updateUiState();
+        setStatus('Waiting for a Markdown file…');
       }
     }
   };
@@ -932,11 +1233,10 @@ export function bootstrapApp(): void {
     switchToTab(tabId);
 
     setEditorStatus('');
-    setStatus('New document created. Start typing!', 'info');
+    setStatus('New document ready. Enter edit mode to begin writing.', 'info');
 
     window.requestAnimationFrame(() => {
-      const activeEditor = ensureEditor();
-      activeEditor.focus();
+      // Focus happens when entering edit mode.
     });
   };
 
@@ -948,6 +1248,116 @@ export function bootstrapApp(): void {
 
     const activeEditor = editor ?? ensureEditor();
     activeEditor.insertMarkdown(tool);
+  };
+
+  const handleExport = async (format: 'pdf' | 'docx'): Promise<void> => {
+    const hasDocument = Boolean(state.path || state.displayPath);
+    if (!hasDocument) {
+      setStatus('Open a document before exporting.', 'error');
+      return;
+    }
+
+    try {
+      setStatus(`Preparing ${format.toUpperCase()} export...`, 'info');
+
+      const filename = state.displayPath
+        ? getFileName(state.displayPath).replace(/\.(md|markdown|mdown)$/i, '')
+        : 'document';
+
+      // Calculate save path if we have a file path (for Tauri)
+      let savePath: string | undefined;
+      if (state.path && runningInTauri) {
+        // Replace the .md extension with the export format extension
+        savePath = state.path.replace(/\.(md|markdown|mdown)$/i, `.${format}`);
+      }
+
+      await exportDocument(viewer, {
+        filename,
+        format,
+        savePath,
+      });
+
+      if (savePath) {
+        setStatus(`Exported to ${truncatePath(savePath)}`, 'info');
+      } else {
+        setStatus(`Successfully exported as ${format.toUpperCase()}.`, 'info');
+      }
+    } catch (error) {
+      console.error(`Failed to export ${format}:`, error);
+      setStatus(`Failed to export ${format.toUpperCase()}. Please try again.`, 'error');
+    }
+  };
+
+  const handleShowRecents = (): void => {
+    // Close all tabs to return to the empty/recents state
+    const allTabs = Array.from(tabs.keys());
+
+    // Check if any tabs have unsaved changes
+    const unsavedTabs = allTabs.filter(tabId => {
+      const tab = tabs.get(tabId);
+      return tab?.sessionState.isDirty;
+    });
+
+    if (unsavedTabs.length > 0) {
+      const tabNames = unsavedTabs
+        .map(tabId => tabs.get(tabId)?.viewerState.displayPath || 'Untitled')
+        .join(', ');
+      if (!confirm(`${unsavedTabs.length} tab(s) have unsaved changes (${tabNames}). Close anyway?`)) {
+        return;
+      }
+    }
+
+    // Clear all tabs
+    allTabs.forEach(tabId => {
+      const tabElement = tabList.querySelector(`[data-tab-id="${tabId}"]`);
+      if (tabElement) {
+        tabElement.remove();
+      }
+      tabs.delete(tabId);
+    });
+
+    // Reset to empty state
+    activeTabId = null;
+    Object.assign(state, {
+      path: null,
+      displayPath: null,
+      size: 0,
+      lastModified: null,
+      content: '',
+    });
+    Object.assign(session, {
+      isEditing: false,
+      isDirty: false,
+      originalContent: '',
+    });
+
+    resetViewer();
+    updateUiState();
+    setStatus('Viewing recent documents');
+
+    // Refresh recents to show the cards
+    void refreshRecents();
+  };
+
+  const handleOpenLocation = async (): Promise<void> => {
+    if (!runningInTauri) {
+      setStatus('Opening file location is only available in the desktop app.', 'error');
+      return;
+    }
+
+    if (!state.path) {
+      setStatus('No file location available for unsaved documents.', 'error');
+      return;
+    }
+
+    try {
+      // Reveal the file in the system's file explorer
+      await revealItemInDir(state.path);
+      setStatus(`Revealed ${getFileName(state.path)} in file explorer`, 'info');
+    } catch (error) {
+      console.error('Failed to open file location:', error);
+      setStatus('Unable to open file location.', 'error');
+    }
   };
 
   const registerMenuListeners = async (): Promise<void> => {
@@ -982,6 +1392,19 @@ export function bootstrapApp(): void {
     }
   };
 
+  viewToggle.addEventListener('click', () => {
+    if (!session.isEditing) {
+      return;
+    }
+
+    session.isEditing = false;
+    updateUiState();
+    setStatus(`Viewing ${describeCurrentFile()}`);
+
+    // Save the updated editing state to the current tab
+    saveCurrentTabState();
+  });
+
   editToggle.addEventListener('click', () => {
     toggleEditing();
   });
@@ -998,10 +1421,6 @@ export function bootstrapApp(): void {
     void handleCopy();
   });
 
-  newDocButton.addEventListener('click', () => {
-    void handleNewDocument();
-  });
-
   newTabButton.addEventListener('click', () => {
     void handleNewDocument();
   });
@@ -1015,7 +1434,35 @@ export function bootstrapApp(): void {
     });
   });
 
-  const switchView = (viewName: string): void => {
+  if (exportPdfButton) {
+    exportPdfButton.addEventListener('click', () => {
+      void handleExport('pdf');
+    });
+  }
+
+  if (exportWordButton) {
+    exportWordButton.addEventListener('click', () => {
+      void handleExport('docx');
+    });
+  }
+
+  if (recentsTrigger) {
+    recentsTrigger.addEventListener('click', () => {
+      handleShowRecents();
+    });
+  }
+
+  if (openLocationButton) {
+    openLocationButton.addEventListener('click', () => {
+      void handleOpenLocation();
+    });
+  }
+
+  function switchView(viewName: string): void {
+    if (!root || !layout || !settingsView || !aboutView) {
+      return;
+    }
+
     const isViewerView = viewName === 'viewer';
     const isSettingsView = viewName === 'settings';
     const isAboutView = viewName === 'about';
@@ -1038,7 +1485,7 @@ export function bootstrapApp(): void {
         link.classList.remove('nav-link--active');
       }
     });
-  };
+  }
 
   navLinks.forEach((link) => {
     link.addEventListener('click', (event) => {
@@ -1111,6 +1558,65 @@ export function bootstrapApp(): void {
     });
   });
 
+  if (clearRecentsButton) {
+    clearRecentsButton.addEventListener('click', () => {
+      void handleClearRecents();
+    });
+  }
+
+  if (dropZoneSelect) {
+    dropZoneSelect.addEventListener('click', () => {
+      void handleDialogSelection();
+    });
+  }
+
+  if (dropZone && runningInTauri) {
+    let dragCounter = 0;
+
+    const handleDragEnter = (e: DragEvent): void => {
+      e.preventDefault();
+      dragCounter++;
+      dropZone.classList.add('drop-zone--active');
+    };
+
+    const handleDragLeave = (e: DragEvent): void => {
+      e.preventDefault();
+      dragCounter--;
+      if (dragCounter === 0) {
+        dropZone.classList.remove('drop-zone--active');
+      }
+    };
+
+    const handleDragOver = (e: DragEvent): void => {
+      e.preventDefault();
+    };
+
+    const handleDrop = async (e: DragEvent): Promise<void> => {
+      e.preventDefault();
+      dragCounter = 0;
+      dropZone.classList.remove('drop-zone--active');
+
+      const files = Array.from(e.dataTransfer?.files ?? []);
+      const mdFile = files.find((file) => /\.(md|markdown|mdown)$/i.test(file.name));
+
+      if (mdFile) {
+        const path = (mdFile as File & { path?: string }).path;
+        if (path) {
+          await loadFromPath(path);
+        }
+      } else {
+        setStatus('Please drop a Markdown file (.md, .markdown, or .mdown).', 'error');
+      }
+    };
+
+    dropZone.addEventListener('dragenter', handleDragEnter);
+    dropZone.addEventListener('dragleave', handleDragLeave);
+    dropZone.addEventListener('dragover', handleDragOver);
+    dropZone.addEventListener('drop', (e) => {
+      void handleDrop(e);
+    });
+  }
+
   window.addEventListener(
     'beforeunload',
     () => {
@@ -1119,50 +1625,14 @@ export function bootstrapApp(): void {
     { once: true },
   );
 
-  const restoreCollapsibleState = (): void => {
-    try {
-      const activeDocCollapsed = window.localStorage.getItem(ACTIVE_DOC_COLLAPSED_KEY);
-      const recentDocCollapsed = window.localStorage.getItem(RECENT_DOC_COLLAPSED_KEY);
-
-      if (activeDocCollapsed === 'false') {
-        activeDocDetails.open = true;
-      }
-
-      if (recentDocCollapsed === 'false') {
-        recentDetails.open = true;
-      }
-    } catch (error) {
-      console.warn('Unable to restore collapsible section state', error);
-    }
-  };
-
-  const persistCollapsibleState = (): void => {
-    try {
-      window.localStorage.setItem(ACTIVE_DOC_COLLAPSED_KEY, String(!activeDocDetails.open));
-      window.localStorage.setItem(RECENT_DOC_COLLAPSED_KEY, String(!recentDetails.open));
-    } catch (error) {
-      console.warn('Unable to persist collapsible section state', error);
-    }
-  };
-
-  activeDocDetails.addEventListener('toggle', () => {
-    persistCollapsibleState();
-  });
-
-  recentDetails.addEventListener('toggle', () => {
-    persistCollapsibleState();
-  });
 
   setStatus('Waiting for a Markdown file…');
-  updateMeta(state);
-  updateUiState();
   void initializePreferences();
   initializePaneResizing();
-  restoreCollapsibleState();
   void refreshRecents();
-
   // Initialize with viewer view active
   switchView('viewer');
+  updateUiState();
 }
 
 function isTauriRuntime(): boolean {
@@ -1211,4 +1681,8 @@ function formatTimestamp(timestamp: string | null | undefined): string | null {
   }
 
   return date.toLocaleString();
+}
+
+function isMarkdownFile(pathOrName: string): boolean {
+  return /\.(md|markdown|mdown)$/i.test(pathOrName);
 }

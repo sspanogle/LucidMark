@@ -17,6 +17,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             let store = app
                 .store_builder(STORE_FILE)
@@ -39,6 +40,8 @@ pub fn run() {
             commands::write_file,
             commands::get_recent_files,
             commands::add_recent_file,
+            commands::remove_recent_file,
+            commands::clear_recent_files,
             commands::get_preferences,
             commands::save_preferences,
             commands::get_session_state,

@@ -119,6 +119,33 @@ pub async fn add_recent_file(
 }
 
 #[tauri::command]
+pub async fn remove_recent_file(
+    app: AppHandle,
+    path: String,
+    settings: State<'_, AppSettingsState>,
+) -> Result<(), String> {
+    settings
+        .remove_recent_file(&path)
+        .await
+        .map_err(|err| err.to_string())?;
+    let recents = settings.list_recent_files().await;
+    menu::rebuild(&app, &recents).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
+pub async fn clear_recent_files(
+    app: AppHandle,
+    settings: State<'_, AppSettingsState>,
+) -> Result<(), String> {
+    settings
+        .clear_recent_files()
+        .await
+        .map_err(|err| err.to_string())?;
+    let recents = settings.list_recent_files().await;
+    menu::rebuild(&app, &recents).map_err(|err| err.to_string())
+}
+
+#[tauri::command]
 pub async fn get_preferences(settings: State<'_, AppSettingsState>) -> Result<Preferences, String> {
     Ok(settings.get_preferences().await)
 }

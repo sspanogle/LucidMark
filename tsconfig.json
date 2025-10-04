@@ -26,7 +26,8 @@
       "@settings/*": ["./src/settings/*"],
       "@ui/*": ["./src/ui/*"],
       "@utils/*": ["./src/utils/*"],
-      "@shared-types/*": ["./src/types/*"]
+      "@shared-types/*": ["./src/types/*"],
+      "@export/*": ["./src/export/*"]
     }
   },
   "include": ["src/**/*"],

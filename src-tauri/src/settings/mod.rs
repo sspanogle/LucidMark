@@ -276,6 +276,21 @@ impl AppSettingsState {
         self.persist_recents(&snapshot)
     }
 
+    pub async fn remove_recent_file(&self, path: &str) -> Result<()> {
+        let mut entries = self.recent_files.write().await;
+        entries.retain(|entry| entry.path != path);
+        let snapshot: Vec<RecentFile> = entries.iter().cloned().collect();
+        drop(entries);
+        self.persist_recents(&snapshot)
+    }
+
+    pub async fn clear_recent_files(&self) -> Result<()> {
+        let mut entries = self.recent_files.write().await;
+        entries.clear();
+        drop(entries);
+        self.persist_recents(&[])
+    }
+
     pub async fn get_preferences(&self) -> Preferences {
         self.preferences.read().await.clone()
     }
