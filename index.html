@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LucidMark</title>
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+  <body>
+    <div id="app">
+      <header class="top-nav">
+        <div class="brand">LucidMark</div>
+        <nav class="nav-links">
+          <button type="button" class="nav-button" data-new-doc>New Document</button>
+          <button type="button" class="nav-button" data-edit-toggle aria-pressed="false">Enter Edit Mode</button>
+          <button type="button" class="nav-button" data-open-trigger>Open Markdown</button>
+          <a href="#viewer" class="nav-link" data-nav-link="viewer">Viewer</a>
+          <a href="#settings" class="nav-link" data-nav-link="settings">Settings</a>
+          <a href="#about" class="nav-link" data-nav-link="about">About</a>
+        </nav>
+      </header>
+
+      <section class="document-meta" aria-label="Active document info">
+        <details class="collapsible-section" data-active-doc-details>
+          <summary class="collapsible-section__header">
+            <h2 class="document-meta__heading">Active Document</h2>
+          </summary>
+          <div class="collapsible-section__content">
+            <p class="status-line document-meta__status" data-status>Waiting for a Markdown file…</p>
+            <div class="document-meta__item">
+              <span class="document-meta__label">Path</span>
+              <span class="document-meta__value" data-file-path>None selected</span>
+            </div>
+            <div class="document-meta__item">
+              <span class="document-meta__label">Size</span>
+              <span class="document-meta__value" data-file-size>—</span>
+            </div>
+            <div class="document-meta__item">
+              <span class="document-meta__label">Updated</span>
+              <span class="document-meta__value" data-file-updated>—</span>
+            </div>
+          </div>
+        </details>
+
+        <details class="collapsible-section recent-files" data-recent-details data-recent-section hidden>
+          <summary class="collapsible-section__header">
+            <h3 class="document-meta__heading">Recent Documents</h3>
+          </summary>
+          <div class="collapsible-section__content">
+            <ul class="recent-list" data-recent-list></ul>
+          </div>
+        </details>
+      </section>
+
+      <section class="tab-bar" data-tab-bar>
+        <div class="tab-list" data-tab-list>
+          <!-- Tabs will be inserted here dynamically -->
+        </div>
+        <button type="button" class="tab-new" data-new-tab title="New Tab">+</button>
+      </section>
+
+      <main id="viewer" class="app-layout app-layout--single">
+        <section class="panel panel-controls panel-controls--hidden" data-editor-panel>
+          <div class="editor-pane" data-editor-pane hidden>
+            <header class="editor-toolbar">
+              <div class="editor-toolbar__group">
+                <button type="button" class="toolbar-button" data-save disabled>Save</button>
+                <button type="button" class="toolbar-button" data-revert disabled>Revert</button>
+                <button type="button" class="toolbar-button" data-copy disabled>Copy Raw</button>
+              </div>
+              <div class="editor-toolbar__markdown-tools" data-markdown-tools>
+                <button type="button" class="md-tool-button" data-md-tool="h1" title="Heading 1">H1</button>
+                <button type="button" class="md-tool-button" data-md-tool="h2" title="Heading 2">H2</button>
+                <button type="button" class="md-tool-button" data-md-tool="h3" title="Heading 3">H3</button>
+                <button type="button" class="md-tool-button" data-md-tool="bold" title="Bold">B</button>
+                <button type="button" class="md-tool-button" data-md-tool="italic" title="Italic">I</button>
+                <button type="button" class="md-tool-button" data-md-tool="underline" title="Underline">U</button>
+                <button type="button" class="md-tool-button" data-md-tool="quote" title="Quote">""</button>
+                <button type="button" class="md-tool-button" data-md-tool="code" title="Code">&lt;&gt;</button>
+                <button type="button" class="md-tool-button" data-md-tool="ul" title="Unordered List">• List</button>
+                <button type="button" class="md-tool-button" data-md-tool="ol" title="Ordered List">1. List</button>
+                <button type="button" class="md-tool-button" data-md-tool="link" title="Link">🔗</button>
+                <button type="button" class="md-tool-button" data-md-tool="image" title="Image">🖼</button>
+              </div>
+              <div class="editor-toolbar__status" data-editor-status></div>
+            </header>
+            <div class="editor-container" data-editor-root></div>
+          </div>
+        </section>
+
+        <div class="resize-handle" data-resize-handle aria-hidden="true" title="Drag to resize panels" hidden>
+          <span class="resize-handle__grip"></span>
+          <span class="resize-handle__hint">⇔</span>
+        </div>
+
+        <section class="panel panel-viewer">
+          <article id="markdown-viewer" class="markdown-body markdown-placeholder">
+            <div class="empty-state" data-empty-state>
+              <h2>Ready when you are</h2>
+              <p>Select or drop a Markdown file to render it here with full GitHub styling.</p>
+            </div>
+          </article>
+        </section>
+      </main>
+
+      <section id="settings" class="settings-view" data-settings-view hidden>
+        <div class="settings-container">
+          <h2 class="settings-heading">Settings</h2>
+
+          <div class="settings-section">
+            <h3 class="settings-section__title">Preview Settings</h3>
+            <p class="settings-section__description">Configure how markdown content is rendered in the preview panel.</p>
+
+            <div class="settings-group">
+              <label class="setting-item">
+                <div class="setting-item__info">
+                  <span class="setting-item__label">Render Math Formulas</span>
+                  <span class="setting-item__description">Enable LaTeX math rendering using KaTeX</span>
+                </div>
+                <input type="checkbox" class="setting-toggle" data-math-toggle checked />
+              </label>
+
+              <label class="setting-item">
+                <div class="setting-item__info">
+                  <span class="setting-item__label">Render Diagrams</span>
+                  <span class="setting-item__description">Enable Mermaid and DrawIO diagram rendering</span>
+                </div>
+                <input type="checkbox" class="setting-toggle" data-diagrams-toggle checked />
+              </label>
+
+              <label class="setting-item">
+                <div class="setting-item__info">
+                  <span class="setting-item__label">Syntax Highlighting</span>
+                  <span class="setting-item__description">Enable code syntax highlighting with Prism</span>
+                </div>
+                <input type="checkbox" class="setting-toggle" data-syntax-toggle checked />
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="about" class="about-view" data-about-view hidden>
+        <div class="about-container">
+          <h2 class="about-heading">About LucidMark</h2>
+
+          <div class="about-section">
+            <p class="about-description">
+              LucidMark is a powerful, modern Markdown viewer and editor designed to provide a seamless writing and reading experience.
+              Built with clarity and simplicity in mind, LucidMark transforms your Markdown documents into beautifully rendered content
+              while offering a feature-rich editing environment for content creation.
+            </p>
+            <p class="about-description">
+              Whether you're writing documentation, taking notes, or creating technical content, LucidMark provides all the tools
+              you need with an intuitive interface that stays out of your way.
+            </p>
+          </div>
+
+          <div class="about-section">
+            <h3 class="about-section__title">Rendering Capabilities</h3>
+            <ul class="about-list">
+              <li><strong>GitHub-Flavored Markdown:</strong> Full support for GFM including task lists, tables, strikethrough, emoji, and footnotes</li>
+              <li><strong>Syntax Highlighting:</strong> Beautiful code syntax highlighting powered by Prism with support for 40+ programming languages</li>
+              <li><strong>Diagrams:</strong> Create visual diagrams using <code>```mermaid</code> and <code>```drawio</code> code fences</li>
+              <li><strong>Math Equations:</strong> Render complex mathematical formulas with LaTeX syntax using KaTeX</li>
+              <li><strong>Live Preview:</strong> See your changes instantly with real-time rendering and synchronized scrolling</li>
+            </ul>
+          </div>
+
+          <div class="about-section">
+            <h3 class="about-section__title">Key Features</h3>
+            <ul class="about-list">
+              <li><strong>Dual-Pane Editor:</strong> Write and preview side-by-side with synchronized scrolling between editor and preview</li>
+              <li><strong>Quick Formatting Toolbar:</strong> Access common Markdown formatting with one click (headings, bold, italic, lists, links, and more)</li>
+              <li><strong>Smart Editor:</strong> Built-in CodeMirror editor with Markdown syntax highlighting and keyboard shortcuts</li>
+              <li><strong>Document Management:</strong> Create new documents, open existing files, and access recent documents quickly</li>
+              <li><strong>Customizable Preview:</strong> Toggle rendering features on/off to suit your needs (math, diagrams, syntax highlighting)</li>
+              <li><strong>Session Persistence:</strong> Your settings, recent files, and UI preferences are saved between sessions</li>
+              <li><strong>Clean Interface:</strong> Distraction-free design that focuses on your content</li>
+            </ul>
+          </div>
+
+          <div class="about-section">
+            <h3 class="about-section__title">Perfect For</h3>
+            <ul class="about-list">
+              <li>Technical documentation and README files</li>
+              <li>Note-taking and personal knowledge management</li>
+              <li>Blog post and article writing</li>
+              <li>Project documentation with diagrams and code samples</li>
+              <li>Academic writing with mathematical notation</li>
+              <li>Any Markdown editing and preview needs</li>
+            </ul>
+          </div>
+
+          <div class="about-section">
+            <p class="about-version">Version 1.0.0</p>
+          </div>
+        </div>
+      </section>
+    </div>
+  </body>
+</html>
