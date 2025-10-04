@@ -1,6 +1,5 @@
 import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
-import type { DragDropEvent } from '@tauri-apps/api/webview';
 
 import { MarkdownEditor } from '@editor/markdown-editor';
 import {
@@ -76,6 +75,7 @@ export function bootstrapApp(): void {
   const tabBar = root?.querySelector<HTMLElement>('[data-tab-bar]');
   const tabList = root?.querySelector<HTMLElement>('[data-tab-list]');
   const newTabButton = root?.querySelector<HTMLButtonElement>('[data-new-tab]');
+  const viewerSections = Array.from(root?.querySelectorAll<HTMLElement>('[data-viewer-section]') ?? []);
 
   if (
     !root ||
@@ -1024,6 +1024,12 @@ export function bootstrapApp(): void {
     settingsView.hidden = !isSettingsView;
     aboutView.hidden = !isAboutView;
 
+    root.setAttribute('data-active-view', viewName);
+
+    viewerSections.forEach((section) => {
+      section.hidden = !isViewerView;
+    });
+
     navLinks.forEach((link) => {
       const linkView = link.dataset.navLink;
       if (linkView === viewName) {
@@ -1176,10 +1182,6 @@ function formatBytes(bytes: number): string {
   const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
   const value = bytes / 1024 ** exponent;
   return `${value.toFixed(exponent === 0 ? 0 : 1)} ${units[exponent]}`;
-}
-
-function isMarkdownFile(path: string): boolean {
-  return /\.(md|markdown|mdown)$/i.test(path);
 }
 
 function truncatePath(path: string): string {

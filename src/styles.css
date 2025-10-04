@@ -16,6 +16,11 @@ body {
   margin: 0;
 }
 
+#app[data-active-view='settings'] [data-viewer-section],
+#app[data-active-view='about'] [data-viewer-section] {
+  display: none;
+}
+
 body.is-resizing,
 body.is-resizing * {
   cursor: col-resize !important;
@@ -736,6 +741,18 @@ body.is-resizing .resize-handle__hint,
   display: flex;
   flex-direction: column;
   gap: 2rem;
+}
+
+.about-header {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.about-logo {
+  width: 80px;
+  height: 80px;
+  flex-shrink: 0;
 }
 
 .about-heading {
