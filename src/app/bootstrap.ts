@@ -770,13 +770,20 @@ export function bootstrapApp(): void {
     }
   };
 
-  const handleDialogSelection = async (): Promise<void> => {
-    const selected = await pickFile();
-    if (!selected) {
-      return;
-    }
-    await loadFromPath(selected);
-  };
+	const handleDialogSelection = async (): Promise<void> => {
+		setStatus('Opening Markdown file picker...');
+		try {
+			const selected = await pickFile();
+			if (!selected) {
+				setStatus('Open cancelled.');
+				return;
+			}
+			await loadFromPath(selected);
+		} catch (error) {
+			console.error('Failed to open file picker:', error);
+			setStatus('Unable to open file picker. Check desktop permissions and try again.', 'error');
+		}
+	};
 
   const toggleEditing = (): void => {
     const hasDocument = Boolean(state.path || state.displayPath);
@@ -1271,11 +1278,11 @@ export function bootstrapApp(): void {
         savePath = state.path.replace(/\.(md|markdown|mdown)$/i, `.${format}`);
       }
 
-      await exportDocument(viewer, {
-        filename,
-        format,
-        savePath,
-      });
+		await exportDocument(viewer, {
+			filename,
+			format,
+			...(savePath ? { savePath } : {}),
+		});
 
       if (savePath) {
         setStatus(`Exported to ${truncatePath(savePath)}`, 'info');
